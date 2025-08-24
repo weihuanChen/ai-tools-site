@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Search } from "lucide-react"
@@ -9,117 +8,49 @@ import { Input } from "@/components/ui/input"
 import { Sidebar } from "@/components/sidebar"
 import { ToolCard } from "@/components/tool-card"
 import { UserMenu } from "@/components/user-menu"
-
-const featuredTools = [
-  {
-    id: 1,
-    name: "豆包",
-    description: "字节跳动推出的AI智能助手，支持多轮对话和文档分析",
-    icon: "/ai-chat-assistant-icon.png",
-    category: "AI写作工具",
-    rating: 4.8,
-    users: "100万+",
-    isFeatured: true,
-  },
-  {
-    id: 2,
-    name: "即梦AI",
-    description: "字节跳动推出的AI视频生成工具，一键生成高质量视频",
-    icon: "/placeholder-plb3q.png",
-    category: "AI视频工具",
-    rating: 4.6,
-    users: "50万+",
-  },
-  {
-    id: 3,
-    name: "TRAE编程",
-    description: "基于跳动推出的AI编程助手，提升开发效率",
-    icon: "/ai-programming-assistant-icon.png",
-    category: "AI编程工具",
-    rating: 4.7,
-    users: "30万+",
-  },
-  {
-    id: 4,
-    name: "AIPPT",
-    description: "AI快速生成高质量PPT，支持多种模板和风格",
-    icon: "/ai-presentation-tool-icon.png",
-    category: "AI办公工具",
-    rating: 4.5,
-    users: "80万+",
-    isFeatured: true,
-  },
-  {
-    id: 5,
-    name: "秘塔AI搜索",
-    description: "最好用的AI搜索引擎，精准理解用户意图",
-    icon: "/ai-search-engine-icon.png",
-    category: "AI搜索引擎",
-    rating: 4.9,
-    users: "200万+",
-  },
-  {
-    id: 6,
-    name: "问小白",
-    description: "免费AI智能助手，24小时在线服务",
-    icon: "/ai-assistant-icon.png",
-    category: "AI聊天助手",
-    rating: 4.4,
-    users: "60万+",
-  },
-]
-
-const latestTools = [
-  {
-    id: 7,
-    name: "美图设计室",
-    description: "AI图像创作和设计工具，专业级设计效果",
-    icon: "/ai-design-tool-icon.png",
-    category: "AI图像工具",
-    rating: 4.3,
-    users: "25万+",
-    isNew: true,
-  },
-  {
-    id: 8,
-    name: "推荐AI",
-    description: "同里出品的免费AI工具，智能推荐系统",
-    icon: "/ai-recommendation-tool-icon.png",
-    category: "AI写作工具",
-    rating: 4.2,
-    users: "15万+",
-    isNew: true,
-  },
-  {
-    id: 9,
-    name: "给蛙",
-    description: "AI智能客服工具，提升客户服务体验",
-    icon: "/ai-customer-service-icon.png",
-    category: "AI聊天助手",
-    rating: 4.1,
-    users: "10万+",
-  },
-  {
-    id: 10,
-    name: "办公小浣熊",
-    description: "最强AI数据分析工具，让数据说话",
-    icon: "/ai-data-analysis-icon.png",
-    category: "AI办公工具",
-    rating: 4.6,
-    users: "35万+",
-    isNew: true,
-  },
-]
+import { useTools } from "@/hooks/use-tools"
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
+  const { featuredTools, latestTools, categoryTools, loading, error } = useTools()
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     if (searchQuery.trim()) {
       router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`)
     }
+  }
+
+  // 获取指定分类的工具
+  const getToolsByCategory = (categorySlug: string) => {
+    return categoryTools[categorySlug] || []
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 flex flex-col ml-64">
+          <div className="flex items-center justify-center h-screen">
+            <div className="text-lg text-gray-600">加载中...</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 flex flex-col ml-64">
+          <div className="flex items-center justify-center h-screen">
+            <div className="text-lg text-red-600">加载失败: {error}</div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -153,7 +84,6 @@ export default function HomePage() {
             </div>
           </div>
         </header>
-
         <main className="flex-1 px-6 py-8 pt-24">
           <div className="max-w-7xl mx-auto">
             {/* Featured Tools Section */}
@@ -201,16 +131,9 @@ export default function HomePage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                {featuredTools
-                  .filter((tool) => tool.category === "AI写作工具")
-                  .map((tool) => (
-                    <ToolCard key={`writing-${tool.id}`} tool={tool} variant="compact" />
-                  ))}
-                {latestTools
-                  .filter((tool) => tool.category === "AI写作工具")
-                  .map((tool) => (
-                    <ToolCard key={`writing-${tool.id}`} tool={tool} variant="compact" />
-                  ))}
+                {getToolsByCategory('writing').map((tool) => (
+                  <ToolCard key={`writing-${tool.id}`} tool={tool} variant="compact" />
+                ))}
               </div>
             </section>
 
@@ -225,16 +148,9 @@ export default function HomePage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                {featuredTools
-                  .filter((tool) => tool.category === "AI图像工具")
-                  .map((tool) => (
-                    <ToolCard key={`image-${tool.id}`} tool={tool} variant="compact" />
-                  ))}
-                {latestTools
-                  .filter((tool) => tool.category === "AI图像工具")
-                  .map((tool) => (
-                    <ToolCard key={`image-${tool.id}`} tool={tool} variant="compact" />
-                  ))}
+                {getToolsByCategory('image').map((tool) => (
+                  <ToolCard key={`image-${tool.id}`} tool={tool} variant="compact" />
+                ))}
               </div>
             </section>
 
@@ -249,16 +165,9 @@ export default function HomePage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                {featuredTools
-                  .filter((tool) => tool.category === "AI视频工具")
-                  .map((tool) => (
-                    <ToolCard key={`video-${tool.id}`} tool={tool} variant="compact" />
-                  ))}
-                {latestTools
-                  .filter((tool) => tool.category === "AI视频工具")
-                  .map((tool) => (
-                    <ToolCard key={`video-${tool.id}`} tool={tool} variant="compact" />
-                  ))}
+                {getToolsByCategory('video').map((tool) => (
+                  <ToolCard key={`video-${tool.id}`} tool={tool} variant="compact" />
+                ))}
               </div>
             </section>
 
@@ -273,16 +182,9 @@ export default function HomePage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                {featuredTools
-                  .filter((tool) => tool.category === "AI办公工具")
-                  .map((tool) => (
-                    <ToolCard key={`office-${tool.id}`} tool={tool} variant="compact" />
-                  ))}
-                {latestTools
-                  .filter((tool) => tool.category === "AI办公工具")
-                  .map((tool) => (
-                    <ToolCard key={`office-${tool.id}`} tool={tool} variant="compact" />
-                  ))}
+                {getToolsByCategory('office').map((tool) => (
+                  <ToolCard key={`office-${tool.id}`} tool={tool} variant="compact" />
+                ))}
               </div>
             </section>
 
@@ -297,16 +199,9 @@ export default function HomePage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                {featuredTools
-                  .filter((tool) => tool.category === "AI编程工具")
-                  .map((tool) => (
-                    <ToolCard key={`programming-${tool.id}`} tool={tool} variant="compact" />
-                  ))}
-                {latestTools
-                  .filter((tool) => tool.category === "AI编程工具")
-                  .map((tool) => (
-                    <ToolCard key={`programming-${tool.id}`} tool={tool} variant="compact" />
-                  ))}
+                {getToolsByCategory('programming').map((tool) => (
+                  <ToolCard key={`programming-${tool.id}`} tool={tool} variant="compact" />
+                ))}
               </div>
             </section>
 
@@ -321,16 +216,9 @@ export default function HomePage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                {featuredTools
-                  .filter((tool) => tool.category === "AI聊天助手")
-                  .map((tool) => (
-                    <ToolCard key={`chat-${tool.id}`} tool={tool} variant="compact" />
-                  ))}
-                {latestTools
-                  .filter((tool) => tool.category === "AI聊天助手")
-                  .map((tool) => (
-                    <ToolCard key={`chat-${tool.id}`} tool={tool} variant="compact" />
-                  ))}
+                {getToolsByCategory('chat').map((tool) => (
+                  <ToolCard key={`chat-${tool.id}`} tool={tool} variant="compact" />
+                ))}
               </div>
             </section>
 
@@ -345,16 +233,9 @@ export default function HomePage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                {featuredTools
-                  .filter((tool) => tool.category === "AI搜索引擎")
-                  .map((tool) => (
-                    <ToolCard key={`search-${tool.id}`} tool={tool} variant="compact" />
-                  ))}
-                {latestTools
-                  .filter((tool) => tool.category === "AI搜索引擎")
-                  .map((tool) => (
-                    <ToolCard key={`search-${tool.id}`} tool={tool} variant="compact" />
-                  ))}
+                {getToolsByCategory('search').map((tool) => (
+                  <ToolCard key={`search-${tool.id}`} tool={tool} variant="compact" />
+                ))}
               </div>
             </section>
           </div>

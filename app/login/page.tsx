@@ -10,48 +10,67 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/contexts/auth-context"
-import { Eye, EyeOff, ArrowLeft } from "lucide-react"
+import { Eye, EyeOff, ArrowLeft, Loader2 } from "lucide-react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const { login, isLoading } = useAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setIsSubmitting(true)
 
-    if (!email || !password) {
-      setError("请填写所有字段")
+    // 客户端验证
+    if (!email.trim()) {
+      setError("请输入邮箱地址")
+      setIsSubmitting(false)
       return
     }
 
-    const success = await login(email, password)
-    if (success) {
-      router.push("/")
-    } else {
-      setError("邮箱或密码错误")
+    if (!password.trim()) {
+      setError("请输入密码")
+      setIsSubmitting(false)
+      return
+    }
+
+    if (password.length < 6) {
+      setError("密码长度至少6位")
+      setIsSubmitting(false)
+      return
+    }
+
+    try {
+      const result = await login(email.trim(), password)
+
+      if (result.success) {
+        router.push("/")
+      } else {
+        setError(result.error || "登录失败，请重试")
+      }
+    } catch (error) {
+      setError("登录过程中发生错误，请重试")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <Link href="/" className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4">
-            <ArrowLeft className="w-4 h-4" />
+        {/* 头部 */}
+        <div className="text-center mb-8">
+          <Link href="/" className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4">
+            <ArrowLeft className="w-4 h-4 mr-2" />
             返回首页
           </Link>
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold">AI</span>
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900">AI工具集</h1>
-          </div>
-          <p className="text-gray-600">登录您的账户</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">AI工具集</h1>
+          <p className="text-gray-600">发现最新最好用的AI工具</p>
         </div>
 
         <Card>
@@ -61,18 +80,20 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* 邮箱 */}
               <div className="space-y-2">
-                <Label htmlFor="email">邮箱地址</Label>
+                <Label htmlFor="email">邮箱</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="请输入邮箱地址"
+                  placeholder="请输入您的邮箱"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
               </div>
 
+              {/* 密码 */}
               <div className="space-y-2">
                 <Label htmlFor="password">密码</Label>
                 <div className="relative">
@@ -86,34 +107,46 @@ export default function LoginPage() {
                   />
                   <button
                     type="button"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              {error && <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">{error}</div>}
+              {/* 错误信息 */}
+              {error && (
+                <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg border border-red-200">
+                  {error}
+                </div>
+              )}
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "登录中..." : "登录"}
+              {/* 提交按钮 */}
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={isSubmitting || isLoading}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    登录中...
+                  </>
+                ) : (
+                  "登录"
+                )}
               </Button>
             </form>
 
+            {/* 注册链接 */}
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
                 还没有账户？{" "}
-                <Link href="/register" className="text-blue-600 hover:text-blue-700 font-medium">
+                <Link href="/register" className="text-blue-600 hover:text-blue-800 font-medium">
                   立即注册
                 </Link>
               </p>
-            </div>
-
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-600">
-              <p className="font-medium mb-1">测试账户：</p>
-              <p>邮箱: test@example.com</p>
-              <p>密码: 123456</p>
             </div>
           </CardContent>
         </Card>

@@ -1,0 +1,1337 @@
+---
+description: supabase 存储方案参照此规则
+alwaysApply: false
+---
+我来为您的AI工具集项目设计基于Supabase的存储bucket方案，包含SQL命令和安全策略。
+
+# AI工具集Supabase存储Bucket设计文档
+
+## 存储概述
+
+本设计文档基于Supabase Storage服务，定义了三个主要的数据存储bucket，用于管理AI工具集网站的所有图片资源，包括分类图标、工具logo和工具预览图。
+
+## Supabase Storage Bucket设计
+
+### 1. 分类图标存储Bucket
+
+**Bucket名称**: `category-icons`
+**用途**: 存储侧边栏分类的图标图片
+**访问权限**: 公开读取，认证用户上传
+
+#### 存储结构
+```
+category-icons/
+├── writing/
+│   ├── 24x24.png
+│   ├── 32x32.png
+│   └── 48x48.png
+├── image/
+│   ├── 24x24.png
+│   ├── 32x32.png
+│   └── 48x48.png
+├── video/
+│   ├── 24x24.png
+│   ├── 32x32.png
+│   └── 48x48.png
+└── ...
+```
+
+#### 文件命名规范
+```
+{category-slug}/{size}x{size}.{ext}
+```
+
+### 2. 工具Logo存储Bucket
+
+**Bucket名称**: `tool-logos`
+**用途**: 存储AI工具的logo图片
+**访问权限**: 公开读取，认证用户上传
+
+#### 存储结构
+```
+tool-logos/
+├── douban/
+│   ├── 64x64.png
+│   ├── 128x128.png
+│   └── 256x256.png
+├── jimeng/
+│   ├── 64x64.png
+│   ├── 128x128.png
+│   └── 256x256.png
+└── ...
+```
+
+#### 文件命名规范
+```
+{tool-slug}/{size}x{size}.{ext}
+```
+
+### 3. 工具预览图存储Bucket
+
+**Bucket名称**: `tool-previews`
+**用途**: 存储AI工具的预览图片
+**访问权限**: 公开读取，认证用户上传
+
+#### 存储结构
+```
+tool-previews/
+├── douban/
+│   ├── screenshot-800x600.jpg
+│   ├── screenshot-1200x900.jpg
+│   ├── demo-800x600.jpg
+│   └── demo-1200x900.jpg
+├── jimeng/
+│   ├── screenshot-800x600.jpg
+│   ├── screenshot-1200x900.jpg
+│   ├── demo-800x600.jpg
+│   └── demo-1200x900.jpg
+└── ...
+```
+
+#### 文件命名规范
+```
+{tool-slug}/{type}-{width}x{height}.{ext}
+```
+
+## 完整SQL实现
+
+### 1. 创建存储策略和Bucket
+
+```sql
+-- 启用Supabase Storage扩展
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 创建分类图标bucket
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'category-icons',
+  'category-icons',
+  true,
+  1048576, -- 1MB限制
+  ARRAY['image/png', 'image/svg+xml', 'image/webp']
+);
+
+-- 创建工具Logo bucket
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'tool-logos',
+  'tool-logos',
+  true,
+  2097152, -- 2MB限制
+  ARRAY['image/png', 'image/svg+xml', 'image/webp', 'image/jpeg']
+);
+
+-- 创建工具预览图bucket
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'tool-previews',
+  'tool-previews',
+  true,
+  5242880, -- 5MB限制
+  ARRAY['image/png', 'image/jpeg', 'image/webp']
+);
+```
+
+### 2. 创建存储策略
+
+#### 分类图标存储策略
+
+```sql
+-- 分类图标公开读取策略
+CREATE POLICY "分类图标公开读取" ON storage.objects
+FOR SELECT USING (bucket_id = 'category-icons');
+
+-- 分类图标认证用户上传策略
+CREATE POLICY "分类图标认证用户上传" ON storage.objects
+FOR INSERT WITH CHECK (
+  bucket_id = 'category-icons' 
+  AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] IN (
+    SELECT slug FROM tool_categories WHERE is_active = true
+  )
+);
+
+-- 分类图标管理员更新策略
+CREATE POLICY "分类图标管理员更新" ON storage.objects
+FOR UPDATE USING (
+  bucket_id = 'category-icons' 
+  AND auth.role() = 'authenticated'
+  AND EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid() 
+    AND users.role = 'admin'
+  )
+);
+
+-- 分类图标管理员删除策略
+CREATE POLICY "分类图标管理员删除" ON storage.objects
+FOR DELETE USING (
+  bucket_id = 'category-icons' 
+  AND auth.role() = 'authenticated'
+  AND EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid() 
+    AND users.role = 'admin'
+  )
+);
+```
+
+#### 工具Logo存储策略
+
+```sql
+-- 工具Logo公开读取策略
+CREATE POLICY "工具Logo公开读取" ON storage.objects
+FOR SELECT USING (bucket_id = 'tool-logos');
+
+-- 工具Logo认证用户上传策略
+CREATE POLICY "工具Logo认证用户上传" ON storage.objects
+FOR INSERT WITH CHECK (
+  bucket_id = 'tool-logos' 
+  AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] IN (
+    SELECT slug FROM ai_tools WHERE status = 'active'
+    UNION
+    SELECT slug FROM tool_submissions WHERE status = 'pending'
+  )
+);
+
+-- 工具Logo所有者更新策略
+CREATE POLICY "工具Logo所有者更新" ON storage.objects
+FOR UPDATE USING (
+  bucket_id = 'tool-logos' 
+  AND auth.role() = 'authenticated'
+  AND (
+    EXISTS (
+      SELECT 1 FROM ai_tools 
+      WHERE ai_tools.slug = (storage.foldername(name))[1]
+      AND ai_tools.submitted_by = auth.uid()
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM tool_submissions 
+      WHERE tool_submissions.slug = (storage.foldername(name))[1]
+      AND tool_submissions.user_id = auth.uid()
+    )
+  )
+);
+
+-- 工具Logo所有者删除策略
+CREATE POLICY "工具Logo所有者删除" ON storage.objects
+FOR DELETE USING (
+  bucket_id = 'tool-logos' 
+  AND auth.role() = 'authenticated'
+  AND (
+    EXISTS (
+      SELECT 1 FROM ai_tools 
+      WHERE ai_tools.slug = (storage.foldername(name))[1]
+      AND ai_tools.submitted_by = auth.uid()
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM tool_submissions 
+      WHERE tool_submissions.slug = (storage.foldername(name))[1]
+      AND tool_submissions.user_id = auth.uid()
+    )
+  )
+);
+```
+
+#### 工具预览图存储策略
+
+```sql
+-- 工具预览图公开读取策略
+CREATE POLICY "工具预览图公开读取" ON storage.objects
+FOR SELECT USING (bucket_id = 'tool-previews');
+
+-- 工具预览图认证用户上传策略
+CREATE POLICY "工具预览图认证用户上传" ON storage.objects
+FOR INSERT WITH CHECK (
+  bucket_id = 'tool-previews' 
+  AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] IN (
+    SELECT slug FROM ai_tools WHERE status = 'active'
+    UNION
+    SELECT slug FROM tool_submissions WHERE status = 'pending'
+  )
+);
+
+-- 工具预览图所有者更新策略
+CREATE POLICY "工具预览图所有者更新" ON storage.objects
+FOR UPDATE USING (
+  bucket_id = 'tool-previews' 
+  AND auth.role() = 'authenticated'
+  AND (
+    EXISTS (
+      SELECT 1 FROM ai_tools 
+      WHERE ai_tools.slug = (storage.foldername(name))[1]
+      AND ai_tools.submitted_by = auth.uid()
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM tool_submissions 
+      WHERE tool_submissions.slug = (storage.foldername(name))[1]
+      AND tool_submissions.user_id = auth.uid()
+    )
+  )
+);
+
+-- 工具预览图所有者删除策略
+CREATE POLICY "工具预览图所有者删除" ON storage.objects
+FOR DELETE USING (
+  bucket_id = 'tool-previews' 
+  AND auth.role() = 'authenticated'
+  AND (
+    EXISTS (
+      SELECT 1 FROM ai_tools 
+      WHERE ai_tools.slug = (storage.foldername(name))[1]
+      AND ai_tools.submitted_by = auth.uid()
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM tool_submissions 
+      WHERE tool_submissions.slug = (storage.foldername(name))[1]
+      AND tool_submissions.user_id = auth.uid()
+    )
+  )
+);
+```
+
+### 3. 更新数据库表结构
+
+```sql
+-- 更新tool_categories表，添加图标字段
+ALTER TABLE tool_categories 
+ADD COLUMN icon_24 VARCHAR(500) COMMENT '24x24图标URL',
+ADD COLUMN icon_32 VARCHAR(500) COMMENT '32x32图标URL',
+ADD COLUMN icon_48 VARCHAR(500) COMMENT '48x48图标URL';
+
+-- 更新ai_tools表，添加Logo和预览图字段
+ALTER TABLE ai_tools 
+ADD COLUMN logo_64 VARCHAR(500) COMMENT '64x64 Logo URL',
+ADD COLUMN logo_128 VARCHAR(500) COMMENT '128x128 Logo URL',
+ADD COLUMN logo_256 VARCHAR(500) COMMENT '256x256 Logo URL',
+ADD COLUMN preview_images JSON COMMENT '预览图片URL集合';
+
+-- 更新tool_submissions表，添加Logo和预览图字段
+ALTER TABLE tool_submissions 
+ADD COLUMN logo_path VARCHAR(500) COMMENT 'Logo路径',
+ADD COLUMN preview_images JSON COMMENT '预览图片路径集合';
+```
+
+### 4. 创建存储辅助函数
+
+```sql
+-- 创建获取分类图标URL的函数
+CREATE OR REPLACE FUNCTION get_category_icon_url(
+  category_slug TEXT,
+  icon_size TEXT DEFAULT '32'
+)
+RETURNS TEXT AS $$
+BEGIN
+  RETURN 'https://your-project.supabase.co/storage/v1/object/public/category-icons/' || 
+         category_slug || '/' || icon_size || 'x' || icon_size || '.png';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 创建获取工具Logo URL的函数
+CREATE OR REPLACE FUNCTION get_tool_logo_url(
+  tool_slug TEXT,
+  logo_size TEXT DEFAULT '128'
+)
+RETURNS TEXT AS $$
+BEGIN
+  RETURN 'https://your-project.supabase.co/storage/v1/object/public/tool-logos/' || 
+         tool_slug || '/' || logo_size || 'x' || logo_size || '.png';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 创建获取工具预览图URL的函数
+CREATE OR REPLACE FUNCTION get_tool_preview_url(
+  tool_slug TEXT,
+  preview_type TEXT DEFAULT 'screenshot',
+  preview_size TEXT DEFAULT '800x600'
+)
+RETURNS TEXT AS $$
+BEGIN
+  RETURN 'https://your-project.supabase.co/storage/v1/object/public/tool-previews/' || 
+         tool_slug || '/' || preview_type || '-' || preview_size || '.jpg';
+END;
+$$ LANGUAGE plpgsql;
+```
+
+## 前端集成代码
+
+### 1. Supabase客户端配置
+
+```typescript
+// lib/supabase.ts
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+// 存储bucket配置
+export const STORAGE_BUCKETS = {
+  CATEGORY_ICONS: 'category-icons',
+  TOOL_LOGOS: 'tool-logos',
+  TOOL_PREVIEWS: 'tool-previews'
+} as const
+```
+
+### 2. 图片上传函数
+
+```typescript
+// lib/storage.ts
+import { supabase, STORAGE_BUCKETS } from './supabase'
+
+export interface UploadResult {
+  success: boolean
+  url?: string
+  error?: string
+}
+
+// 上传分类图标
+export async function uploadCategoryIcon(
+  categorySlug: string,
+  size: '24' | '32' | '48',
+  file: File
+): Promise<UploadResult> {
+  try {
+    const filePath = `${categorySlug}/${size}x${size}.png`
+    const { data, error } = await supabase.storage
+      .from(STORAGE_BUCKETS.CATEGORY_ICONS)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      })
+
+    if (error) throw error
+
+    const { data: { publicUrl } } = supabase.storage
+      .from(STORAGE_BUCKETS.CATEGORY_ICONS)
+      .getPublicUrl(filePath)
+
+    return { success: true, url: publicUrl }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+}
+
+// 上传工具Logo
+export async function uploadToolLogo(
+  toolSlug: string,
+  size: '64' | '128' | '256',
+  file: File
+): Promise<UploadResult> {
+  try {
+    const filePath = `${toolSlug}/${size}x${size}.png`
+    const { data, error } = await supabase.storage
+      .from(STORAGE_BUCKETS.TOOL_LOGOS)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      })
+
+    if (error) throw error
+
+    const { data: { publicUrl } } = supabase.storage
+      .from(STORAGE_BUCKETS.TOOL_LOGOS)
+      .getPublicUrl(filePath)
+
+    return { success: true, url: publicUrl }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+}
+
+// 上传工具预览图
+export async function uploadToolPreview(
+  toolSlug: string,
+  type: 'screenshot' | 'demo',
+  size: '800x600' | '1200x900' | '1920x1080',
+  file: File
+): Promise<UploadResult> {
+  try {
+    const filePath = `${toolSlug}/${type}-${size}.jpg`
+    const { data, error } = await supabase.storage
+      .from(STORAGE_BUCKETS.TOOL_PREVIEWS)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      })
+
+    if (error) throw error
+
+    const { data: { publicUrl } } = supabase.storage
+      .from(STORAGE_BUCKETS.TOOL_PREVIEWS)
+      .getPublicUrl(filePath)
+
+    return { success: true, url: publicUrl }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+}
+```
+
+### 3. 图片显示组件
+
+```typescript
+// components/ui/category-icon.tsx
+import { getCategoryIconUrl } from '@/lib/storage'
+
+interface CategoryIconProps {
+  categorySlug: string
+  size?: '24' | '32' | '48'
+  className?: string
+  alt?: string
+}
+
+export function CategoryIcon({ 
+  categorySlug, 
+  size = '32', 
+  className = '',
+  alt = ''
+}: CategoryIconProps) {
+  const iconUrl = getCategoryIconUrl(categorySlug, size)
+  
+  return (
+    <img
+      src={iconUrl}
+      alt={alt}
+      className={className}
+      width={parseInt(size)}
+      height={parseInt(size)}
+    />
+  )
+}
+
+// components/ui/tool-logo.tsx
+import { getToolLogoUrl } from '@/lib/storage'
+
+interface ToolLogoProps {
+  toolSlug: string
+  size?: '64' | '128' | '256'
+  className?: string
+  alt?: string
+}
+
+export function ToolLogo({ 
+  toolSlug, 
+  size = '128', 
+  className = '',
+  alt = ''
+}: ToolLogoProps) {
+  const logoUrl = getToolLogoUrl(toolSlug, size)
+  
+  return (
+    <img
+      src={logoUrl}
+      alt={alt}
+      className={className}
+      width={parseInt(size)}
+      height={parseInt(size)}
+    />
+  )
+}
+```
+
+## 安全策略说明
+
+### 1. 访问控制策略
+
+- **公开读取**: 所有图片资源允许公开访问，支持CDN加速
+- **认证上传**: 只有认证用户才能上传图片
+- **权限验证**: 用户只能上传/修改自己提交的工具相关图片
+- **管理员权限**: 管理员可以管理所有图片资源
+
+### 2. 文件类型限制
+
+- **分类图标**: PNG, SVG, WebP格式，最大1MB
+- **工具Logo**: PNG, SVG, WebP, JPEG格式，最大2MB
+- **工具预览图**: PNG, JPEG, WebP格式，最大5MB
+
+### 3. 路径验证策略
+
+- 分类图标只能上传到已激活的分类文件夹
+- 工具Logo只能上传到已存在或待审核的工具文件夹
+- 工具预览图只能上传到已存在或待审核的工具文件夹
+
+### 4. 存储生命周期管理
+
+```sql
+-- 创建存储清理策略（可选）
+-- 删除超过30天的未使用文件
+CREATE POLICY "清理未使用文件" ON storage.objects
+FOR DELETE USING (
+  created_at < NOW() - INTERVAL '30 days'
+  AND NOT EXISTS (
+    SELECT 1 FROM tool_categories 
+    WHERE icon_24 LIKE '%' || name || '%'
+    OR icon_32 LIKE '%' || name || '%'
+    OR icon_48 LIKE '%' || name || '%'
+  )
+);
+```
+
+## 监控和维护
+
+### 1. 存储使用监控
+
+```sql
+-- 查看存储使用情况
+SELECT 
+  bucket_id,
+  COUNT(*) as file_count,
+  SUM(metadata->>'size')::bigint as total_size,
+  AVG((metadata->>'size')::bigint) as avg_file_size
+FROM storage.objects
+GROUP BY bucket_id;
+
+-- 查看大文件
+SELECT 
+  name,
+  bucket_id,
+  (metadata->>'size')::bigint as file_size,
+  created_at
+FROM storage.objects
+WHERE (metadata->>'size')::bigint > 1048576 -- 大于1MB
+ORDER BY file_size DESC;
+```
+
+### 2. 访问日志监控
+
+```sql
+-- 创建访问日志表
+CREATE TABLE storage_access_logs (
+  id SERIAL PRIMARY KEY,
+  bucket_id TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  access_type TEXT NOT NULL, -- 'read', 'write', 'delete'
+  user_id UUID,
+  ip_address INET,
+  user_agent TEXT,
+  accessed_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 创建访问日志触发器
+CREATE OR REPLACE FUNCTION log_storage_access()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO storage_access_logs (
+    bucket_id, 
+    file_path, 
+    access_type, 
+    user_id
+  ) VALUES (
+    TG_ARGV[0],
+    NEW.name,
+    TG_OP,
+    auth.uid()
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 为每个bucket创建触发器
+CREATE TRIGGER log_category_icons_access
+  AFTER INSERT OR UPDATE OR DELETE ON storage.objects
+  FOR EACH ROW
+  WHEN (NEW.bucket_id = 'category-icons' OR OLD.bucket_id = 'category-icons')
+  EXECUTE FUNCTION log_storage_access('category-icons');
+```
+
+## 部署和配置
+
+### 1. 环境变量配置
+
+```bash
+# .env.local
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+### 2. Supabase项目配置
+
+1. 在Supabase控制台启用Storage服务
+2. 创建上述三个bucket
+3. 配置存储策略
+4. 设置CORS策略（如果需要）
+5. 配置CDN和缓存策略
+
+### 3. 性能优化建议
+
+- 启用Supabase CDN加速
+- 使用WebP格式减少文件大小
+- 实现图片懒加载
+- 使用响应式图片技术
+
+这个基于Supabase的存储方案为您的AI工具集项目提供了完整的图片资源管理解决方案，包括安全策略、权限控制和前端集成代码。我来为您的AI工具集项目设计基于Supabase的存储bucket方案，包含SQL命令和安全策略。
+
+# AI工具集Supabase存储Bucket设计文档
+
+## 存储概述
+
+本设计文档基于Supabase Storage服务，定义了三个主要的数据存储bucket，用于管理AI工具集网站的所有图片资源，包括分类图标、工具logo和工具预览图。
+
+## Supabase Storage Bucket设计
+
+### 1. 分类图标存储Bucket
+
+**Bucket名称**: `category-icons`
+**用途**: 存储侧边栏分类的图标图片
+**访问权限**: 公开读取，认证用户上传
+
+#### 存储结构
+```
+category-icons/
+├── writing/
+│   ├── 24x24.png
+│   ├── 32x32.png
+│   └── 48x48.png
+├── image/
+│   ├── 24x24.png
+│   ├── 32x32.png
+│   └── 48x48.png
+├── video/
+│   ├── 24x24.png
+│   ├── 32x32.png
+│   └── 48x48.png
+└── ...
+```
+
+#### 文件命名规范
+```
+{category-slug}/{size}x{size}.{ext}
+```
+
+### 2. 工具Logo存储Bucket
+
+**Bucket名称**: `tool-logos`
+**用途**: 存储AI工具的logo图片
+**访问权限**: 公开读取，认证用户上传
+
+#### 存储结构
+```
+tool-logos/
+├── douban/
+│   ├── 64x64.png
+│   ├── 128x128.png
+│   └── 256x256.png
+├── jimeng/
+│   ├── 64x64.png
+│   ├── 128x128.png
+│   └── 256x256.png
+└── ...
+```
+
+#### 文件命名规范
+```
+{tool-slug}/{size}x{size}.{ext}
+```
+
+### 3. 工具预览图存储Bucket
+
+**Bucket名称**: `tool-previews`
+**用途**: 存储AI工具的预览图片
+**访问权限**: 公开读取，认证用户上传
+
+#### 存储结构
+```
+tool-previews/
+├── douban/
+│   ├── screenshot-800x600.jpg
+│   ├── screenshot-1200x900.jpg
+│   ├── demo-800x600.jpg
+│   └── demo-1200x900.jpg
+├── jimeng/
+│   ├── screenshot-800x600.jpg
+│   ├── screenshot-1200x900.jpg
+│   ├── demo-800x600.jpg
+│   └── demo-1200x900.jpg
+└── ...
+```
+
+#### 文件命名规范
+```
+{tool-slug}/{type}-{width}x{height}.{ext}
+```
+
+## 完整SQL实现
+
+### 1. 创建存储策略和Bucket
+
+```sql
+-- 启用Supabase Storage扩展
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 创建分类图标bucket
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'category-icons',
+  'category-icons',
+  true,
+  1048576, -- 1MB限制
+  ARRAY['image/png', 'image/svg+xml', 'image/webp']
+);
+
+-- 创建工具Logo bucket
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'tool-logos',
+  'tool-logos',
+  true,
+  2097152, -- 2MB限制
+  ARRAY['image/png', 'image/svg+xml', 'image/webp', 'image/jpeg']
+);
+
+-- 创建工具预览图bucket
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'tool-previews',
+  'tool-previews',
+  true,
+  5242880, -- 5MB限制
+  ARRAY['image/png', 'image/jpeg', 'image/webp']
+);
+```
+
+### 2. 创建存储策略
+
+#### 分类图标存储策略
+
+```sql
+-- 分类图标公开读取策略
+CREATE POLICY "分类图标公开读取" ON storage.objects
+FOR SELECT USING (bucket_id = 'category-icons');
+
+-- 分类图标认证用户上传策略
+CREATE POLICY "分类图标认证用户上传" ON storage.objects
+FOR INSERT WITH CHECK (
+  bucket_id = 'category-icons' 
+  AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] IN (
+    SELECT slug FROM tool_categories WHERE is_active = true
+  )
+);
+
+-- 分类图标管理员更新策略
+CREATE POLICY "分类图标管理员更新" ON storage.objects
+FOR UPDATE USING (
+  bucket_id = 'category-icons' 
+  AND auth.role() = 'authenticated'
+  AND EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid() 
+    AND users.role = 'admin'
+  )
+);
+
+-- 分类图标管理员删除策略
+CREATE POLICY "分类图标管理员删除" ON storage.objects
+FOR DELETE USING (
+  bucket_id = 'category-icons' 
+  AND auth.role() = 'authenticated'
+  AND EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid() 
+    AND users.role = 'admin'
+  )
+);
+```
+
+#### 工具Logo存储策略
+
+```sql
+-- 工具Logo公开读取策略
+CREATE POLICY "工具Logo公开读取" ON storage.objects
+FOR SELECT USING (bucket_id = 'tool-logos');
+
+-- 工具Logo认证用户上传策略
+CREATE POLICY "工具Logo认证用户上传" ON storage.objects
+FOR INSERT WITH CHECK (
+  bucket_id = 'tool-logos' 
+  AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] IN (
+    SELECT slug FROM ai_tools WHERE status = 'active'
+    UNION
+    SELECT slug FROM tool_submissions WHERE status = 'pending'
+  )
+);
+
+-- 工具Logo所有者更新策略
+CREATE POLICY "工具Logo所有者更新" ON storage.objects
+FOR UPDATE USING (
+  bucket_id = 'tool-logos' 
+  AND auth.role() = 'authenticated'
+  AND (
+    EXISTS (
+      SELECT 1 FROM ai_tools 
+      WHERE ai_tools.slug = (storage.foldername(name))[1]
+      AND ai_tools.submitted_by = auth.uid()
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM tool_submissions 
+      WHERE tool_submissions.slug = (storage.foldername(name))[1]
+      AND tool_submissions.user_id = auth.uid()
+    )
+  )
+);
+
+-- 工具Logo所有者删除策略
+CREATE POLICY "工具Logo所有者删除" ON storage.objects
+FOR DELETE USING (
+  bucket_id = 'tool-logos' 
+  AND auth.role() = 'authenticated'
+  AND (
+    EXISTS (
+      SELECT 1 FROM ai_tools 
+      WHERE ai_tools.slug = (storage.foldername(name))[1]
+      AND ai_tools.submitted_by = auth.uid()
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM tool_submissions 
+      WHERE tool_submissions.slug = (storage.foldername(name))[1]
+      AND tool_submissions.user_id = auth.uid()
+    )
+  )
+);
+```
+
+#### 工具预览图存储策略
+
+```sql
+-- 工具预览图公开读取策略
+CREATE POLICY "工具预览图公开读取" ON storage.objects
+FOR SELECT USING (bucket_id = 'tool-previews');
+
+-- 工具预览图认证用户上传策略
+CREATE POLICY "工具预览图认证用户上传" ON storage.objects
+FOR INSERT WITH CHECK (
+  bucket_id = 'tool-previews' 
+  AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] IN (
+    SELECT slug FROM ai_tools WHERE status = 'active'
+    UNION
+    SELECT slug FROM tool_submissions WHERE status = 'pending'
+  )
+);
+
+-- 工具预览图所有者更新策略
+CREATE POLICY "工具预览图所有者更新" ON storage.objects
+FOR UPDATE USING (
+  bucket_id = 'tool-previews' 
+  AND auth.role() = 'authenticated'
+  AND (
+    EXISTS (
+      SELECT 1 FROM ai_tools 
+      WHERE ai_tools.slug = (storage.foldername(name))[1]
+      AND ai_tools.submitted_by = auth.uid()
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM tool_submissions 
+      WHERE tool_submissions.slug = (storage.foldername(name))[1]
+      AND tool_submissions.user_id = auth.uid()
+    )
+  )
+);
+
+-- 工具预览图所有者删除策略
+CREATE POLICY "工具预览图所有者删除" ON storage.objects
+FOR DELETE USING (
+  bucket_id = 'tool-previews' 
+  AND auth.role() = 'authenticated'
+  AND (
+    EXISTS (
+      SELECT 1 FROM ai_tools 
+      WHERE ai_tools.slug = (storage.foldername(name))[1]
+      AND ai_tools.submitted_by = auth.uid()
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM tool_submissions 
+      WHERE tool_submissions.slug = (storage.foldername(name))[1]
+      AND tool_submissions.user_id = auth.uid()
+    )
+  )
+);
+```
+
+### 3. 更新数据库表结构
+
+```sql
+-- 更新tool_categories表，添加图标字段
+ALTER TABLE tool_categories 
+ADD COLUMN icon_24 VARCHAR(500) COMMENT '24x24图标URL',
+ADD COLUMN icon_32 VARCHAR(500) COMMENT '32x32图标URL',
+ADD COLUMN icon_48 VARCHAR(500) COMMENT '48x48图标URL';
+
+-- 更新ai_tools表，添加Logo和预览图字段
+ALTER TABLE ai_tools 
+ADD COLUMN logo_64 VARCHAR(500) COMMENT '64x64 Logo URL',
+ADD COLUMN logo_128 VARCHAR(500) COMMENT '128x128 Logo URL',
+ADD COLUMN logo_256 VARCHAR(500) COMMENT '256x256 Logo URL',
+ADD COLUMN preview_images JSON COMMENT '预览图片URL集合';
+
+-- 更新tool_submissions表，添加Logo和预览图字段
+ALTER TABLE tool_submissions 
+ADD COLUMN logo_path VARCHAR(500) COMMENT 'Logo路径',
+ADD COLUMN preview_images JSON COMMENT '预览图片路径集合';
+```
+
+### 4. 创建存储辅助函数
+
+```sql
+-- 创建获取分类图标URL的函数
+CREATE OR REPLACE FUNCTION get_category_icon_url(
+  category_slug TEXT,
+  icon_size TEXT DEFAULT '32'
+)
+RETURNS TEXT AS $$
+BEGIN
+  RETURN 'https://your-project.supabase.co/storage/v1/object/public/category-icons/' || 
+         category_slug || '/' || icon_size || 'x' || icon_size || '.png';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 创建获取工具Logo URL的函数
+CREATE OR REPLACE FUNCTION get_tool_logo_url(
+  tool_slug TEXT,
+  logo_size TEXT DEFAULT '128'
+)
+RETURNS TEXT AS $$
+BEGIN
+  RETURN 'https://your-project.supabase.co/storage/v1/object/public/tool-logos/' || 
+         tool_slug || '/' || logo_size || 'x' || logo_size || '.png';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 创建获取工具预览图URL的函数
+CREATE OR REPLACE FUNCTION get_tool_preview_url(
+  tool_slug TEXT,
+  preview_type TEXT DEFAULT 'screenshot',
+  preview_size TEXT DEFAULT '800x600'
+)
+RETURNS TEXT AS $$
+BEGIN
+  RETURN 'https://your-project.supabase.co/storage/v1/object/public/tool-previews/' || 
+         tool_slug || '/' || preview_type || '-' || preview_size || '.jpg';
+END;
+$$ LANGUAGE plpgsql;
+```
+
+## 前端集成代码
+
+### 1. Supabase客户端配置
+
+```typescript
+// lib/supabase.ts
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+// 存储bucket配置
+export const STORAGE_BUCKETS = {
+  CATEGORY_ICONS: 'category-icons',
+  TOOL_LOGOS: 'tool-logos',
+  TOOL_PREVIEWS: 'tool-previews'
+} as const
+```
+
+### 2. 图片上传函数
+
+```typescript
+// lib/storage.ts
+import { supabase, STORAGE_BUCKETS } from './supabase'
+
+export interface UploadResult {
+  success: boolean
+  url?: string
+  error?: string
+}
+
+// 上传分类图标
+export async function uploadCategoryIcon(
+  categorySlug: string,
+  size: '24' | '32' | '48',
+  file: File
+): Promise<UploadResult> {
+  try {
+    const filePath = `${categorySlug}/${size}x${size}.png`
+    const { data, error } = await supabase.storage
+      .from(STORAGE_BUCKETS.CATEGORY_ICONS)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      })
+
+    if (error) throw error
+
+    const { data: { publicUrl } } = supabase.storage
+      .from(STORAGE_BUCKETS.CATEGORY_ICONS)
+      .getPublicUrl(filePath)
+
+    return { success: true, url: publicUrl }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+}
+
+// 上传工具Logo
+export async function uploadToolLogo(
+  toolSlug: string,
+  size: '64' | '128' | '256',
+  file: File
+): Promise<UploadResult> {
+  try {
+    const filePath = `${toolSlug}/${size}x${size}.png`
+    const { data, error } = await supabase.storage
+      .from(STORAGE_BUCKETS.TOOL_LOGOS)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      })
+
+    if (error) throw error
+
+    const { data: { publicUrl } } = supabase.storage
+      .from(STORAGE_BUCKETS.TOOL_LOGOS)
+      .getPublicUrl(filePath)
+
+    return { success: true, url: publicUrl }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+}
+
+// 上传工具预览图
+export async function uploadToolPreview(
+  toolSlug: string,
+  type: 'screenshot' | 'demo',
+  size: '800x600' | '1200x900' | '1920x1080',
+  file: File
+): Promise<UploadResult> {
+  try {
+    const filePath = `${toolSlug}/${type}-${size}.jpg`
+    const { data, error } = await supabase.storage
+      .from(STORAGE_BUCKETS.TOOL_PREVIEWS)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      })
+
+    if (error) throw error
+
+    const { data: { publicUrl } } = supabase.storage
+      .from(STORAGE_BUCKETS.TOOL_PREVIEWS)
+      .getPublicUrl(filePath)
+
+    return { success: true, url: publicUrl }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+}
+```
+
+### 3. 图片显示组件
+
+```typescript
+// components/ui/category-icon.tsx
+import { getCategoryIconUrl } from '@/lib/storage'
+
+interface CategoryIconProps {
+  categorySlug: string
+  size?: '24' | '32' | '48'
+  className?: string
+  alt?: string
+}
+
+export function CategoryIcon({ 
+  categorySlug, 
+  size = '32', 
+  className = '',
+  alt = ''
+}: CategoryIconProps) {
+  const iconUrl = getCategoryIconUrl(categorySlug, size)
+  
+  return (
+    <img
+      src={iconUrl}
+      alt={alt}
+      className={className}
+      width={parseInt(size)}
+      height={parseInt(size)}
+    />
+  )
+}
+
+// components/ui/tool-logo.tsx
+import { getToolLogoUrl } from '@/lib/storage'
+
+interface ToolLogoProps {
+  toolSlug: string
+  size?: '64' | '128' | '256'
+  className?: string
+  alt?: string
+}
+
+export function ToolLogo({ 
+  toolSlug, 
+  size = '128', 
+  className = '',
+  alt = ''
+}: ToolLogoProps) {
+  const logoUrl = getToolLogoUrl(toolSlug, size)
+  
+  return (
+    <img
+      src={logoUrl}
+      alt={alt}
+      className={className}
+      width={parseInt(size)}
+      height={parseInt(size)}
+    />
+  )
+}
+```
+
+## 安全策略说明
+
+### 1. 访问控制策略
+
+- **公开读取**: 所有图片资源允许公开访问，支持CDN加速
+- **认证上传**: 只有认证用户才能上传图片
+- **权限验证**: 用户只能上传/修改自己提交的工具相关图片
+- **管理员权限**: 管理员可以管理所有图片资源
+
+### 2. 文件类型限制
+
+- **分类图标**: PNG, SVG, WebP格式，最大1MB
+- **工具Logo**: PNG, SVG, WebP, JPEG格式，最大2MB
+- **工具预览图**: PNG, JPEG, WebP格式，最大5MB
+
+### 3. 路径验证策略
+
+- 分类图标只能上传到已激活的分类文件夹
+- 工具Logo只能上传到已存在或待审核的工具文件夹
+- 工具预览图只能上传到已存在或待审核的工具文件夹
+
+### 4. 存储生命周期管理
+
+```sql
+-- 创建存储清理策略（可选）
+-- 删除超过30天的未使用文件
+CREATE POLICY "清理未使用文件" ON storage.objects
+FOR DELETE USING (
+  created_at < NOW() - INTERVAL '30 days'
+  AND NOT EXISTS (
+    SELECT 1 FROM tool_categories 
+    WHERE icon_24 LIKE '%' || name || '%'
+    OR icon_32 LIKE '%' || name || '%'
+    OR icon_48 LIKE '%' || name || '%'
+  )
+);
+```
+
+## 监控和维护
+
+### 1. 存储使用监控
+
+```sql
+-- 查看存储使用情况
+SELECT 
+  bucket_id,
+  COUNT(*) as file_count,
+  SUM(metadata->>'size')::bigint as total_size,
+  AVG((metadata->>'size')::bigint) as avg_file_size
+FROM storage.objects
+GROUP BY bucket_id;
+
+-- 查看大文件
+SELECT 
+  name,
+  bucket_id,
+  (metadata->>'size')::bigint as file_size,
+  created_at
+FROM storage.objects
+WHERE (metadata->>'size')::bigint > 1048576 -- 大于1MB
+ORDER BY file_size DESC;
+```
+
+### 2. 访问日志监控
+
+```sql
+-- 创建访问日志表
+CREATE TABLE storage_access_logs (
+  id SERIAL PRIMARY KEY,
+  bucket_id TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  access_type TEXT NOT NULL, -- 'read', 'write', 'delete'
+  user_id UUID,
+  ip_address INET,
+  user_agent TEXT,
+  accessed_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 创建访问日志触发器
+CREATE OR REPLACE FUNCTION log_storage_access()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO storage_access_logs (
+    bucket_id, 
+    file_path, 
+    access_type, 
+    user_id
+  ) VALUES (
+    TG_ARGV[0],
+    NEW.name,
+    TG_OP,
+    auth.uid()
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 为每个bucket创建触发器
+CREATE TRIGGER log_category_icons_access
+  AFTER INSERT OR UPDATE OR DELETE ON storage.objects
+  FOR EACH ROW
+  WHEN (NEW.bucket_id = 'category-icons' OR OLD.bucket_id = 'category-icons')
+  EXECUTE FUNCTION log_storage_access('category-icons');
+```
+
+## 部署和配置
+
+### 1. 环境变量配置
+
+```bash
+# .env.local
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+### 2. Supabase项目配置
+
+1. 在Supabase控制台启用Storage服务
+2. 创建上述三个bucket
+3. 配置存储策略
+4. 设置CORS策略（如果需要）
+5. 配置CDN和缓存策略
+
+### 3. 性能优化建议
+
+- 启用Supabase CDN加速
+- 使用WebP格式减少文件大小
+- 实现图片懒加载
+- 使用响应式图片技术
+
+这个基于Supabase的存储方案为您的AI工具集项目提供了完整的图片资源管理解决方案，包括安全策略、权限控制和前端集成代码。

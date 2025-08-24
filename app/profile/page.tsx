@@ -10,7 +10,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Clock, CheckCircle, XCircle, Edit, Upload, Star, Eye, Calendar, ArrowLeft } from "lucide-react"
+import { Plus, Clock, CheckCircle, XCircle, Edit, Upload, Star, Eye, Calendar, ArrowLeft, Settings } from "lucide-react"
+import Link from "next/link"
 
 // Mock data for user submissions
 const mockSubmissions = [
@@ -77,7 +78,7 @@ export default function ProfilePage() {
           <CardContent className="pt-6 text-center">
             <p className="text-gray-600 mb-4">请先登录以访问个人中心</p>
             <Button asChild>
-              <a href="/login">立即登录</a>
+              <Link href="/login">立即登录</Link>
             </Button>
           </CardContent>
         </Card>
@@ -116,25 +117,23 @@ export default function ProfilePage() {
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => (window.location.href = "/")}
-              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-            >
+            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
               <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">AI</span>
               </div>
               <h1 className="text-xl font-bold text-gray-900">AI工具集</h1>
-            </button>
+            </Link>
           </div>
 
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => (window.location.href = "/")}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
+            <Link href="/settings" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
+              <Settings className="w-4 h-4" />
+              设置
+            </Link>
+            <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
               <ArrowLeft className="w-4 h-4" />
               返回首页
-            </button>
+            </Link>
           </div>
         </div>
       </header>

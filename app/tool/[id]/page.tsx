@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -30,8 +32,83 @@ const mockTool = {
   id: 1,
   name: "豆包",
   description: "字节跳动推出的AI智能助手，支持多轮对话、文档分析、代码生成等多种功能",
-  longDescription:
-    "豆包是字节跳动开发的新一代AI智能助手，基于先进的大语言模型技术，能够进行自然流畅的对话交流。它不仅支持日常聊天，还能协助用户进行文档分析、代码编写、创意写作、学习辅导等多种任务。豆包具有强大的理解能力和生成能力，能够根据用户需求提供个性化的服务。",
+  longDescription: `# 豆包 - 字节跳动AI智能助手
+
+## 产品概述
+
+豆包是字节跳动开发的新一代AI智能助手，基于先进的大语言模型技术，能够进行自然流畅的对话交流。它不仅支持日常聊天，还能协助用户进行文档分析、代码编写、创意写作、学习辅导等多种任务。
+
+## 核心特性
+
+### 🤖 智能对话
+- **多轮对话**: 支持连续对话，理解上下文
+- **自然语言**: 理解人类自然表达，无需特定指令
+- **个性化**: 根据用户习惯调整回复风格
+
+### 📚 文档分析
+- **文档上传**: 支持PDF、Word、TXT等多种格式
+- **智能总结**: 自动提取关键信息和要点
+- **问答功能**: 针对文档内容进行深度问答
+
+### 💻 代码生成
+- **多语言支持**: Python、JavaScript、Java、Go等
+- **代码解释**: 详细解释代码逻辑和功能
+- **调试建议**: 提供代码优化和错误修复建议
+
+### ✍️ 创意写作
+- **文章创作**: 协助撰写各类文章和内容
+- **风格调整**: 支持不同写作风格和语调
+- **创意激发**: 提供写作灵感和思路
+
+## 技术优势
+
+- **大模型技术**: 基于最新的GPT架构
+- **持续学习**: 模型不断优化和更新
+- **安全可靠**: 多重安全防护机制
+- **隐私保护**: 严格的数据隐私保护
+
+## 使用场景
+
+### 个人用户
+- 日常问答和聊天
+- 学习辅导和知识获取
+- 创意写作和内容创作
+
+### 专业用户
+- 程序员代码辅助
+- 研究人员文档分析
+- 内容创作者写作支持
+
+### 企业应用
+- 客服自动化
+- 文档智能处理
+- 知识库构建
+
+## 定价策略
+
+- **免费版**: 基础功能，每日限额
+- **专业版**: 完整功能，无使用限制
+- **企业版**: 定制化服务，API接口
+
+## 更新日志
+
+### v2.1.0 (2024-01-20)
+- 新增代码生成功能
+- 优化文档分析算法
+- 提升对话响应速度
+
+### v2.0.0 (2024-01-15)
+- 全新界面设计
+- 增强多轮对话能力
+- 支持更多文档格式
+
+## 用户反馈
+
+> "豆包是我用过最好的AI助手，特别是代码生成功能，大大提高了我的开发效率。" - 张工程师
+
+> "文档分析功能太棒了！能快速提取关键信息，节省了大量时间。" - 李研究员
+
+> "界面友好，功能强大，是学习和工作的好帮手。" - 王学生`,
   icon: "/ai-chat-assistant-icon.png",
   category: "AI写作工具",
   subcategory: "智能对话",
@@ -261,7 +338,13 @@ export default function ToolDetailPage() {
                     <CardTitle>工具介绍</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-gray-700 leading-relaxed">{mockTool.longDescription}</p>
+                    <div className="prose prose-gray max-w-none markdown-content">
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm]}
+                      >
+                        {mockTool.longDescription}
+                      </ReactMarkdown>
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -401,31 +484,6 @@ export default function ToolDetailPage() {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Quick Stats */}
-            <Card>
-              <CardHeader>
-                <CardTitle>工具统计</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">浏览量</span>
-                  <span className="font-semibold">{mockTool.stats.views.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">收藏数</span>
-                  <span className="font-semibold">{mockTool.stats.favorites}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">分享数</span>
-                  <span className="font-semibold">{mockTool.stats.shares}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">发布时间</span>
-                  <span className="font-semibold">{mockTool.publishedAt}</span>
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Related Tools */}
             <Card>
               <CardHeader>
