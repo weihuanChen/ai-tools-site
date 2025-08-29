@@ -43,7 +43,7 @@ export default function RegisterPage() {
 
     // 客户端验证
     if (!name.trim()) {
-      setError("请输入姓名");
+      setError("请输入用户名");
       setIsSubmitting(false);
       return;
     }
@@ -119,13 +119,13 @@ export default function RegisterPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* 姓名 */}
+              {/* 用户名 */}
               <div className="space-y-2">
-                <Label htmlFor="name">姓名</Label>
+                <Label htmlFor="name">用户名</Label>
                 <Input
                   id="name"
                   type="text"
-                  placeholder="请输入您的姓名"
+                  placeholder="请输入您的用户名"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required

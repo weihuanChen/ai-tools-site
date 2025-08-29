@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+
 import { User, Settings, LogOut, Plus } from "lucide-react"
 
 export function UserMenu() {
@@ -31,18 +31,21 @@ export function UserMenu() {
 
   return (
     <div className="flex items-center gap-3">
-      <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-        <Plus className="w-4 h-4 mr-2" />
-        提交工具
+      <Button className="bg-blue-600 hover:bg-blue-700 text-white" asChild>
+        <Link href="/submit">
+          <Plus className="w-4 h-4 mr-2" />
+          提交工具
+        </Link>
       </Button>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-              <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
-            </Avatar>
+          <Button variant="ghost" className="relative h-10 w-10 rounded-lg p-0">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">
+                {user.name.charAt(0).toUpperCase()}
+              </span>
+            </div>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56" align="end" forceMount>

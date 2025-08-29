@@ -52,6 +52,7 @@ CREATE TABLE ai_tools (
     features JSONB,
     tags JSONB,
     rating_count INTEGER NOT NULL DEFAULT 0,
+    preview_images JSONB DEFAULT '[]'::jsonb, -- 新增：预览截图字段
     view_count INTEGER NOT NULL DEFAULT 0,
     favorite_count INTEGER NOT NULL DEFAULT 0,
     is_featured BOOLEAN NOT NULL DEFAULT false,
@@ -93,6 +94,7 @@ COMMENT ON COLUMN ai_tools.approved_by IS '审核管理员ID（UUID）';
 COMMENT ON COLUMN ai_tools.approved_at IS '审核通过时间';
 COMMENT ON COLUMN ai_tools.created_at IS '创建时间';
 COMMENT ON COLUMN ai_tools.updated_at IS '更新时间';
+COMMENT ON COLUMN ai_tools.preview_images IS '预览图片（JSON格式）';
 
 -- 3. 用户提交记录表
 CREATE TABLE tool_submissions (
@@ -102,10 +104,13 @@ CREATE TABLE tool_submissions (
     description TEXT NOT NULL,
     category_id INTEGER NOT NULL,
     website_url VARCHAR(500),
+    short_description VARCHAR(200), 
     icon_path VARCHAR(500),
     features JSONB,
     tags JSONB,
+    slug VARCHAR(100) NOT NULL UNIQUE,
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    preview_images JSONB DEFAULT '[]'::jsonb, -- 新增：预览截图字段
     review_notes TEXT,
     reject_reason TEXT,
     reviewed_by UUID,
@@ -121,7 +126,7 @@ CREATE INDEX idx_tool_submissions_category_id ON tool_submissions(category_id);
 CREATE INDEX idx_tool_submissions_status ON tool_submissions(status);
 CREATE INDEX idx_tool_submissions_reviewed_by ON tool_submissions(reviewed_by);
 CREATE INDEX idx_tool_submissions_approved_tool_id ON tool_submissions(approved_tool_id);
-
+CREATE INDEX idx_tool_submissions_slug ON tool_submissions(slug);
 -- 添加注释
 COMMENT ON TABLE tool_submissions IS '用户提交记录表';
 COMMENT ON COLUMN tool_submissions.id IS '主键ID';
@@ -139,8 +144,10 @@ COMMENT ON COLUMN tool_submissions.reject_reason IS '拒绝原因';
 COMMENT ON COLUMN tool_submissions.reviewed_by IS '审核管理员ID（UUID）';
 COMMENT ON COLUMN tool_submissions.reviewed_at IS '审核时间';
 COMMENT ON COLUMN tool_submissions.approved_tool_id IS '审核通过后的工具ID';
+COMMENT ON COLUMN tool_submissions.preview_images IS '预览图片（JSON格式）';
 COMMENT ON COLUMN tool_submissions.created_at IS '提交时间';
 COMMENT ON COLUMN tool_submissions.updated_at IS '更新时间';
+COMMENT ON COLUMN tool_submissions.slug IS '工具标识符（URL友好）';
 
 -- 创建外键约束
 ALTER TABLE ai_tools 
@@ -260,13 +267,26 @@ export interface User {
   name?: string;
   role?: string;
 }
-
+// 预览图
+export interface PreviewImage {
+  id: string;
+  url: string;
+  filename: string;
+  alt: string;
+  description?: string;
+  sort_order: number;
+  size: number;
+  width: number;
+  height: number;
+  uploaded_at: string;
+}
 export interface AITool {
   id: number;
   name: string;
   slug: string;
   description: string;
   short_description?: string;
+  preview_images: PreviewImage[]; // 预览图
   category_id: number;
   icon?: string;
   website_url?: string;
@@ -292,7 +312,9 @@ export interface ToolSubmission {
   description: string;
   category_id: number;
   website_url?: string;
+  preview_images: PreviewImage[]; // 预览图
   icon_path?: string;
+  short_description?: string;
   features?: any;
   tags?: any;
   status: 'pending' | 'approved' | 'rejected';

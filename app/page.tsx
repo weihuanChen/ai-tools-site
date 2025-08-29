@@ -9,11 +9,13 @@ import { Sidebar } from "@/components/sidebar"
 import { ToolCard } from "@/components/tool-card"
 import { UserMenu } from "@/components/user-menu"
 import { useTools } from "@/hooks/use-tools"
+import { useAuth } from "@/contexts/auth-context"
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
   const { featuredTools, latestTools, categoryTools, loading, error } = useTools()
+  const { user } = useAuth()
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -80,6 +82,7 @@ export default function HomePage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </form>
+              
               <UserMenu />
             </div>
           </div>

@@ -125,7 +125,7 @@ export default function SettingsPage() {
                     <CardTitle>基本信息</CardTitle>
                     <CardDescription>管理您的账户信息</CardDescription>
                   </div>
-                  {!isEditing && (
+                  {/* {!isEditing && (
                     <Button
                       onClick={() => setIsEditing(true)}
                       variant="outline"
@@ -134,7 +134,7 @@ export default function SettingsPage() {
                       <Edit className="w-4 h-4 mr-2" />
                       编辑
                     </Button>
-                  )}
+                  )} */}
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -211,7 +211,7 @@ export default function SettingsPage() {
             </Card>
 
             {/* 安全设置卡片 */}
-            <Card className="mt-6">
+            {/* <Card className="mt-6">
               <CardHeader>
                 <CardTitle>安全设置</CardTitle>
                 <CardDescription>管理您的账户安全</CardDescription>
@@ -237,7 +237,7 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </CardContent>
-            </Card>
+            </Card> */}
           </div>
         </div>
       </div>

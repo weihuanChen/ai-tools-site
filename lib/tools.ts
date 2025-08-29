@@ -141,15 +141,80 @@ export async function searchTools(query: string): Promise<AITool[]> {
 // 增加工具浏览次数
 export async function incrementToolViewCount(toolId: number): Promise<void> {
   try {
-    const { error } = await supabase
+    // 先获取当前浏览次数
+    const { data: currentTool, error: fetchError } = await supabase
       .from('ai_tools')
-      .update({ view_count: supabase.rpc('increment') })
+      .select('view_count')
+      .eq('id', toolId)
+      .single()
+
+    if (fetchError) {
+      console.error('获取工具浏览次数失败:', fetchError)
+      return
+    }
+
+    // 更新浏览次数
+    const { error: updateError } = await supabase
+      .from('ai_tools')
+      .update({ view_count: (currentTool?.view_count || 0) + 1 })
       .eq('id', toolId)
 
-    if (error) {
-      console.error('增加工具浏览次数失败:', error)
+    if (updateError) {
+      console.error('增加工具浏览次数失败:', updateError)
     }
   } catch (error) {
     console.error('增加工具浏览次数异常:', error)
+  }
+}
+
+// 获取单个工具详情
+export async function getToolById(id: number): Promise<AITool | null> {
+  try {
+    const { data, error } = await supabase
+      .from('ai_tools')
+      .select(`
+        *,
+        tool_categories!inner(name, slug, description)
+      `)
+      .eq('id', id)
+      .eq('status', 'active')
+      .single()
+
+    if (error) {
+      console.error('获取工具详情失败:', error)
+      return null
+    }
+
+    return data
+  } catch (error) {
+    console.error('获取工具详情异常:', error)
+    return null
+  }
+}
+
+// 获取相关工具（同分类的其他工具）
+export async function getRelatedTools(categoryId: number, excludeId: number, limit: number = 3): Promise<AITool[]> {
+  try {
+    const { data, error } = await supabase
+      .from('ai_tools')
+      .select(`
+        *,
+        tool_categories!inner(name, slug)
+      `)
+      .eq('category_id', categoryId)
+      .neq('id', excludeId)
+      .eq('status', 'active')
+      .order('view_count', { ascending: false })
+      .limit(limit)
+
+    if (error) {
+      console.error('获取相关工具失败:', error)
+      return []
+    }
+
+    return data || []
+  } catch (error) {
+    console.error('获取相关工具异常:', error)
+    return []
   }
 }

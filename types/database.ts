@@ -1,4 +1,19 @@
 // 数据库表类型定义
+
+// 预览图片类型
+export interface PreviewImage {
+  id: string
+  url: string
+  filename: string
+  alt: string
+  description?: string
+  sort_order: number
+  size: number
+  width: number
+  height: number
+  uploaded_at: string
+}
+
 export interface ToolCategory {
   id: number
   name: string
@@ -22,6 +37,7 @@ export interface AITool {
   website_url: string | null
   features: any | null
   tags: any | null
+  preview_images: PreviewImage[] // 预览图片
   rating_count: number
   view_count: number
   favorite_count: number
@@ -39,12 +55,14 @@ export interface ToolSubmission {
   id: number
   user_id: string // UUID类型
   tool_name: string
+  slug: string // URL标识符
   description: string
   category_id: number
   website_url: string | null
   icon_path: string | null
   features: any | null
   tags: any | null
+  preview_images: PreviewImage[] // 预览图片
   status: 'pending' | 'approved' | 'rejected'
   review_notes: string | null
   reject_reason: string | null
@@ -59,5 +77,13 @@ export interface ToolSubmission {
 export interface SidebarCategory {
   id: string
   name: string
+  icon: string | null
+}
+
+// 表单分类项类型（包含数据库ID）
+export interface FormCategory {
+  id: number
+  name: string
+  slug: string
   icon: string | null
 } 

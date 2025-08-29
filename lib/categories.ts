@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { ToolCategory, SidebarCategory } from '@/types/database'
+import { ToolCategory, SidebarCategory, FormCategory } from '@/types/database'
 
 // 获取所有激活的分类
 export async function getActiveCategories(): Promise<ToolCategory[]> {
@@ -40,6 +40,33 @@ export async function getCategoriesForSidebar(): Promise<SidebarCategory[]> {
     return (data || []).map(category => ({
       id: category.slug,
       name: category.name,
+      icon: category.icon
+    }))
+  } catch (error) {
+    console.error('获取分类异常:', error)
+    return []
+  }
+}
+
+// 获取表单分类数据（包含数据库ID）
+export async function getCategoriesForForm(): Promise<FormCategory[]> {
+  try {
+    const { data, error } = await supabase
+      .from('tool_categories')
+      .select('id, name, slug, icon')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+
+    if (error) {
+      console.error('获取分类失败:', error)
+      return []
+    }
+
+    // 返回完整的分类数据，包含数据库ID
+    return (data || []).map(category => ({
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
       icon: category.icon
     }))
   } catch (error) {
