@@ -86,4 +86,18 @@ export interface FormCategory {
   name: string
   slug: string
   icon: string | null
+}
+
+// 用户收藏工具类型
+export interface UserFavorite {
+  id: number
+  user_id: string // UUID类型
+  tool_id: number
+  created_at: string
+  updated_at: string
+}
+
+// 扩展AITool接口，添加收藏状态
+export interface AIToolWithFavorite extends AITool {
+  is_favorited?: boolean
 } 

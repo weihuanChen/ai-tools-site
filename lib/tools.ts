@@ -218,3 +218,140 @@ export async function getRelatedTools(categoryId: number, excludeId: number, lim
     return []
   }
 }
+
+// 获取工具详情（包含收藏状态）
+export async function getToolByIdWithFavorite(toolId: number, userId?: string): Promise<AIToolWithFavorite | null> {
+  try {
+    const { data, error } = await supabase
+      .from('ai_tools')
+      .select(`
+        *,
+        tool_categories!inner(name, slug)
+      `)
+      .eq('id', toolId)
+      .eq('status', 'active')
+      .single()
+
+    if (error) {
+      console.error('获取工具详情失败:', error)
+      return null
+    }
+
+    if (!data) return null
+
+    // 如果用户已登录，检查是否已收藏
+    let isFavorited = false
+    if (userId) {
+      const { data: favoriteData } = await supabase
+        .from('user_favorites')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('tool_id', toolId)
+        .single()
+      
+      isFavorited = !!favoriteData
+    }
+
+    return {
+      ...data,
+      is_favorited: isFavorited
+    }
+  } catch (error) {
+    console.error('获取工具详情异常:', error)
+    return null
+  }
+}
+
+// 添加收藏
+export async function addToFavorites(userId: string, toolId: number): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('user_favorites')
+      .insert({
+        user_id: userId,
+        tool_id: toolId
+      })
+
+    if (error) {
+      console.error('添加收藏失败:', error)
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error('添加收藏异常:', error)
+    return false
+  }
+}
+
+// 取消收藏
+export async function removeFromFavorites(userId: string, toolId: number): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('user_favorites')
+      .delete()
+      .eq('user_id', userId)
+      .eq('tool_id', toolId)
+
+    if (error) {
+      console.error('取消收藏失败:', error)
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error('取消收藏异常:', error)
+    return false
+  }
+}
+
+// 获取用户收藏的工具列表
+export async function getUserFavorites(userId: string): Promise<AITool[]> {
+  try {
+    const { data, error } = await supabase
+      .from('user_favorites')
+      .select(`
+        *,
+        ai_tools (
+          *,
+          tool_categories!inner(name, slug)
+        )
+      `)
+      .eq('user_id', userId)
+      .eq('ai_tools.status', 'active')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('获取用户收藏失败:', error)
+      return []
+    }
+
+    // 提取工具数据
+    return data?.map(item => item.ai_tools).filter(Boolean) || []
+  } catch (error) {
+    console.error('获取用户收藏异常:', error)
+    return []
+  }
+}
+
+// 检查工具是否被用户收藏
+export async function checkToolFavorited(userId: string, toolId: number): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('user_favorites')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('tool_id', toolId)
+      .single()
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 表示没有找到记录
+      console.error('检查收藏状态失败:', error)
+      return false
+    }
+
+    return !!data
+  } catch (error) {
+    console.error('检查收藏状态异常:', error)
+    return false
+  }
+}

@@ -27,18 +27,23 @@ import {
   ThumbsDown,
   Loader2,
 } from "lucide-react"
-import { AITool } from "@/types/database"
-import { getToolById, getRelatedTools, incrementToolViewCount } from "@/lib/tools"
+import { AIToolWithFavorite } from "@/types/database"
+import { getToolById, getRelatedTools, incrementToolViewCount, getToolByIdWithFavorite, addToFavorites, removeFromFavorites } from "@/lib/tools"
 import { TOOL_TAGS } from "@/lib/constants"
+import { useAuth } from "@/contexts/auth-context"
+import { useToast } from "@/hooks/use-toast"
 
 export default function ToolDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const [tool, setTool] = useState<AITool | null>(null)
-  const [relatedTools, setRelatedTools] = useState<AITool[]>([])
+  const { user } = useAuth()
+  const { toast } = useToast()
+  const [tool, setTool] = useState<AIToolWithFavorite | null>(null)
+  const [relatedTools, setRelatedTools] = useState<AIToolWithFavorite[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isFavorited, setIsFavorited] = useState(false)
+  const [favoriteLoading, setFavoriteLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("overview")
   const [newReview, setNewReview] = useState("")
   const [userRating, setUserRating] = useState(0)
@@ -59,13 +64,15 @@ export default function ToolDetailPage() {
           return
         }
 
-        const toolData = await getToolById(toolId)
+        // 使用新的函数获取工具详情（包含收藏状态）
+        const toolData = await getToolByIdWithFavorite(toolId, user?.id)
         if (!toolData) {
           setError('工具不存在或已被删除')
           return
         }
 
         setTool(toolData)
+        setIsFavorited(toolData.is_favorited || false)
 
         // 获取相关工具
         const related = await getRelatedTools(toolData.category_id, toolId, 3)
@@ -83,7 +90,65 @@ export default function ToolDetailPage() {
     }
 
     fetchTool()
-  }, [params.id])
+  }, [params.id, user?.id])
+
+  // 处理收藏/取消收藏
+  const handleFavorite = async () => {
+    if (!user) {
+      toast({
+        title: "请先登录",
+        description: "登录后才能收藏工具",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!tool) return
+
+    try {
+      setFavoriteLoading(true)
+      let success = false
+
+      if (isFavorited) {
+        // 取消收藏
+        success = await removeFromFavorites(user.id, tool.id)
+        if (success) {
+          setIsFavorited(false)
+          toast({
+            title: "已取消收藏",
+            description: "工具已从收藏夹中移除",
+          })
+        }
+      } else {
+        // 添加收藏
+        success = await addToFavorites(user.id, tool.id)
+        if (success) {
+          setIsFavorited(true)
+          toast({
+            title: "收藏成功",
+            description: "工具已添加到收藏夹",
+          })
+        }
+      }
+
+      if (!success) {
+        toast({
+          title: "操作失败",
+          description: "请稍后重试",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('收藏操作失败:', error)
+      toast({
+        title: "操作失败",
+        description: "请稍后重试",
+        variant: "destructive",
+      })
+    } finally {
+      setFavoriteLoading(false)
+    }
+  }
 
   // 分享功能
   const handleShare = async () => {
@@ -259,11 +324,16 @@ export default function ToolDetailPage() {
                 <div className="flex items-center gap-3">
                   <Button
                     variant="outline"
-                    onClick={() => setIsFavorited(!isFavorited)}
+                    onClick={handleFavorite}
                     className={isFavorited ? "text-red-600 border-red-200" : ""}
+                    disabled={favoriteLoading}
                   >
-                    <Heart className={`w-4 h-4 mr-2 ${isFavorited ? "fill-current" : ""}`} />
-                    {isFavorited ? "已收藏" : "收藏"}
+                    {favoriteLoading ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Heart className={`w-4 h-4 mr-2 ${isFavorited ? "fill-current" : ""}`} />
+                    )}
+                    {favoriteLoading ? "处理中..." : (isFavorited ? "已收藏" : "收藏")}
                   </Button>
                   <Button variant="outline" onClick={handleShare}>
                     <Share2 className="w-4 h-4 mr-2" />

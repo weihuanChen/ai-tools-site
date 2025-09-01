@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -61,6 +61,9 @@ export default function SubmitToolPage() {
   const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'unavailable'>('idle')
   const [slugMessage, setSlugMessage] = useState("")
 
+  // 防抖定时器
+  const [slugCheckTimer, setSlugCheckTimer] = useState<NodeJS.Timeout | null>(null)
+
   // 检查用户登录状态
   useEffect(() => {
     if (!authLoading && !user) {
@@ -97,66 +100,121 @@ export default function SubmitToolPage() {
     return slugRegex.test(slugValue) && slugValue.length >= 3 && slugValue.length <= 100
   }
 
-  // 检查slug是否可用
-  const checkSlugAvailability = async (slugValue: string): Promise<boolean> => {
-    if (!slugValue || !validateSlug(slugValue)) return false
+  // 检查slug是否可用 - 改进版本
+  const checkSlugAvailability = async (slugValue: string): Promise<{ available: boolean; message: string }> => {
+    if (!slugValue || !validateSlug(slugValue)) {
+      return { available: false, message: "URL标识格式不正确" }
+    }
     
     try {
-      // 检查ai_tools表中是否已存在
-      const { data: existingTool } = await supabase
-        .from('ai_tools')
-        .select('id')
-        .eq('slug', slugValue)
-        .single()
-      
-      // 检查tool_submissions表中是否已存在
-      const { data: existingSubmission } = await supabase
-        .from('tool_submissions')
-        .select('id')
-        .eq('slug', slugValue)
-        .single()
-      
-      return !existingTool && !existingSubmission
+      // 同时检查两个表，使用Promise.all提高效率
+      const [toolsResult, submissionsResult] = await Promise.all([
+        supabase
+          .from('ai_tools')
+          .select('id, name')
+          .eq('slug', slugValue)
+          .eq('status', 'active')
+          .maybeSingle(),
+        supabase
+          .from('tool_submissions')
+          .select('id, tool_name, status')
+          .eq('slug', slugValue)
+          .maybeSingle()
+      ])
+
+      // 检查ai_tools表
+      if (toolsResult.error) {
+        console.error('检查ai_tools表失败:', toolsResult.error)
+        return { available: false, message: "检查失败，请重试" }
+      }
+
+      if (toolsResult.data) {
+        return {
+          available: false,
+          message: `✗ URL标识已被工具"${toolsResult.data.name}"使用`
+        }
+      }
+
+      // 检查tool_submissions表
+      if (submissionsResult.error) {
+        console.error('检查tool_submissions表失败:', submissionsResult.error)
+        return { available: false, message: "检查失败，请重试" }
+      }
+
+      if (submissionsResult.data) {
+        const statusText = submissionsResult.data.status === 'pending' ? '待审核' :
+                          submissionsResult.data.status === 'approved' ? '已通过' : '已拒绝'
+        return {
+          available: false,
+          message: `✗ URL标识已被提交记录"${submissionsResult.data.tool_name}"使用（状态：${statusText}）`
+        }
+      }
+
+      // 如果都没有找到，说明slug可用
+      return { available: true, message: "✓ URL标识可用" }
+
     } catch (error) {
-      // 如果没有找到记录，说明slug可用
-      return true
+      console.error('检查slug可用性时发生错误:', error)
+      return { available: false, message: "检查失败，请重试" }
     }
   }
+
+  // 防抖处理slug检查
+  const debouncedSlugCheck = useCallback((value: string) => {
+    // 清除之前的定时器
+    if (slugCheckTimer) {
+      clearTimeout(slugCheckTimer)
+    }
+
+    // 设置新的定时器
+    const timer = setTimeout(async () => {
+      if (!value) {
+        setSlugStatus('idle')
+        setSlugMessage("")
+        return
+      }
+      
+      if (!validateSlug(value)) {
+        setSlugStatus('unavailable')
+        setSlugMessage("URL标识只能包含小写字母、数字和连字符，长度3-100字符")
+        return
+      }
+      
+      setSlugStatus('checking')
+      setSlugMessage("检查中...")
+      
+      try {
+        const result = await checkSlugAvailability(value)
+        if (result.available) {
+          setSlugStatus('available')
+          setSlugMessage(result.message)
+        } else {
+          setSlugStatus('unavailable')
+          setSlugMessage(result.message)
+        }
+      } catch (error) {
+        setSlugStatus('unavailable')
+        setSlugMessage("检查失败，请重试")
+      }
+    }, 500) // 500ms防抖延迟
+
+    setSlugCheckTimer(timer)
+  }, [slugCheckTimer])
 
   // 处理slug输入变化
-  const handleSlugChange = async (value: string) => {
+  const handleSlugChange = (value: string) => {
     setSlug(value)
-    
-    if (!value) {
-      setSlugStatus('idle')
-      setSlugMessage("")
-      return
-    }
-    
-    if (!validateSlug(value)) {
-      setSlugStatus('unavailable')
-      setSlugMessage("URL标识只能包含小写字母、数字和连字符，长度3-100字符")
-      return
-    }
-    
-    setSlugStatus('checking')
-    setSlugMessage("检查中...")
-    
-    try {
-      const isAvailable = await checkSlugAvailability(value)
-      if (isAvailable) {
-        setSlugStatus('available')
-        setSlugMessage("✓ URL标识可用")
-      } else {
-        setSlugStatus('unavailable')
-        setSlugMessage("✗ URL标识已被使用")
-      }
-    } catch (error) {
-      setSlugStatus('unavailable')
-      setSlugMessage("检查失败，请重试")
-    }
+    debouncedSlugCheck(value)
   }
 
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (slugCheckTimer) {
+        clearTimeout(slugCheckTimer)
+      }
+    }
+  }, [slugCheckTimer])
 
 
   // 添加功能特性
@@ -316,6 +374,20 @@ export default function SubmitToolPage() {
 
     if (slugStatus !== 'available') {
       setError("请确保URL标识可用")
+      setIsSubmitting(false)
+      return
+    }
+
+    // 提交前再次检查slug可用性，防止并发提交
+    try {
+      const finalSlugCheck = await checkSlugAvailability(slug)
+      if (!finalSlugCheck.available) {
+        setError(`提交失败：${finalSlugCheck.message}`)
+        setIsSubmitting(false)
+        return
+      }
+    } catch (error) {
+      setError("提交前检查URL标识失败，请重试")
       setIsSubmitting(false)
       return
     }

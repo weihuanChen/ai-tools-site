@@ -119,7 +119,16 @@ CREATE TABLE tool_submissions (
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
-
+-- 4.收藏
+CREATE TABLE user_favorites (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL,
+    tool_id INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    -- 确保每个用户只能收藏同一个工具一次
+    UNIQUE(user_id, tool_id)
+);
 -- 创建索引
 CREATE INDEX idx_tool_submissions_user_id ON tool_submissions(user_id);
 CREATE INDEX idx_tool_submissions_category_id ON tool_submissions(category_id);
@@ -127,6 +136,9 @@ CREATE INDEX idx_tool_submissions_status ON tool_submissions(status);
 CREATE INDEX idx_tool_submissions_reviewed_by ON tool_submissions(reviewed_by);
 CREATE INDEX idx_tool_submissions_approved_tool_id ON tool_submissions(approved_tool_id);
 CREATE INDEX idx_tool_submissions_slug ON tool_submissions(slug);
+CREATE INDEX idx_user_favorites_user_id ON user_favorites(user_id);
+CREATE INDEX idx_user_favorites_tool_id ON user_favorites(tool_id);
+CREATE INDEX idx_user_favorites_created_at ON user_favorites(created_at);
 -- 添加注释
 COMMENT ON TABLE tool_submissions IS '用户提交记录表';
 COMMENT ON COLUMN tool_submissions.id IS '主键ID';
@@ -148,16 +160,29 @@ COMMENT ON COLUMN tool_submissions.preview_images IS '预览图片（JSON格式�
 COMMENT ON COLUMN tool_submissions.created_at IS '提交时间';
 COMMENT ON COLUMN tool_submissions.updated_at IS '更新时间';
 COMMENT ON COLUMN tool_submissions.slug IS '工具标识符（URL友好）';
-
+COMMENT ON TABLE user_favorites IS '用户收藏工具表';
+COMMENT ON COLUMN user_favorites.id IS '主键ID';
+COMMENT ON COLUMN user_favorites.user_id IS '用户ID（UUID）';
+COMMENT ON COLUMN user_favorites.tool_id IS 'AI工具ID';
+COMMENT ON COLUMN user_favorites.created_at IS '收藏时间';
+COMMENT ON COLUMN user_favorites.updated_at IS '更新时间';
 -- 创建外键约束
 ALTER TABLE ai_tools 
 ADD CONSTRAINT fk_ai_tools_category_id 
 FOREIGN KEY (category_id) REFERENCES tool_categories(id) ON DELETE RESTRICT;
 
+ALTER TABLE user_favorites
+ADD CONSTRAINT fk_user_favorites_user_id
+
+FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+ALTER TABLE user_favorites
+ADD CONSTRAINT fk_user_favorites_tool_id
+
+FOREIGN KEY (tool_id) REFERENCES ai_tools(id) ON DELETE CASCADE;
 
 ALTER TABLE ai_tools 
 ADD CONSTRAINT fk_ai_tools_approved_by 
-FOREIGN KEY (approved_by) REFERENCES auth.users(id) ON DELETE SET NULL;
 
 ALTER TABLE tool_submissions 
 ADD CONSTRAINT fk_tool_submissions_user_id 
@@ -184,6 +209,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+
 -- 为所有表创建更新时间触发器
 CREATE TRIGGER update_tool_categories_updated_at 
     BEFORE UPDATE ON tool_categories 
@@ -196,6 +222,33 @@ CREATE TRIGGER update_ai_tools_updated_at
 CREATE TRIGGER update_tool_submissions_updated_at 
     BEFORE UPDATE ON tool_submissions 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+-- 创建收藏计数更新触发器函数
+CREATE OR REPLACE FUNCTION update_tool_favorite_count()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        -- 新增收藏时，增加计数
+        UPDATE ai_tools
+        SET favorite_count = favorite_count + 1
+        WHERE id = NEW.tool_id;
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        -- 取消收藏时，减少计数
+        UPDATE ai_tools
+        SET favorite_count = favorite_count - 1
+        WHERE id = OLD.tool_id;
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ language 'plpgsql';
+
+-- 创建触发器
+CREATE TRIGGER trigger_update_tool_favorite_count
+    AFTER INSERT OR DELETE ON user_favorites
+    FOR EACH ROW EXECUTE FUNCTION update_tool_favorite_count();
 ```
 ### 查询语句示例
 查询用户提交的工具提交记录
@@ -232,6 +285,32 @@ JOIN tool_categories c ON s.category_id = c.id
 JOIN auth.users u ON s.user_id = u.id
 WHERE s.status = 'pending'
 ORDER BY s.created_at ASC;
+
+
+-- 查询用户收藏的工具列表
+SELECT
+    f.*,
+    t.name as tool_name,
+    t.description as tool_description,
+    t.icon as tool_icon,
+    t.website_url,
+    c.name as category_name
+FROM user_favorites f
+JOIN ai_tools t ON f.tool_id = t.id
+JOIN tool_categories c ON t.category_id = c.id
+WHERE f.user_id = $1::uuid
+ORDER BY f.created_at DESC;
+
+-- 查询工具是否被用户收藏
+SELECT EXISTS(
+    SELECT 1 FROM user_favorites
+    WHERE user_id = $1::uuid AND tool_id = $2
+) as is_favorited;
+
+-- 查询用户的收藏数量
+SELECT COUNT(*) as favorite_count
+FROM user_favorites
+WHERE user_id = $1::uuid;
 ```
 RLS安全策略
 
@@ -244,7 +323,22 @@ CREATE POLICY "工具所有者修改" ON ai_tools
 FOR UPDATE USING (
     submitted_by = auth.uid()
 );
+-- 收藏表：公开读取，所有者修改
+ALTER TABLE user_favorites ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "用户收藏查看" ON user_favorites
+FOR SELECT USING (
+    user_id = auth.uid()
+);
 
+CREATE POLICY "用户收藏创建" ON user_favorites
+FOR INSERT WITH CHECK (
+    user_id = auth.uid()
+);
+
+CREATE POLICY "用户收藏删除" ON user_favorites
+FOR DELETE USING (
+    user_id = auth.uid()
+);
 -- 提交记录表：用户只能查看自己的提交
 CREATE POLICY "提交记录用户查看" ON tool_submissions
 FOR SELECT USING (
@@ -326,6 +420,20 @@ export interface ToolSubmission {
   created_at: string;
   updated_at: string;
 }
+
+// types/database.ts 中添加
+export interface UserFavorite {
+  id: number;
+  user_id: string; // UUID类型
+  tool_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// 扩展AITool接口，添加收藏状态
+export interface AIToolWithFavorite extends AITool {
+  is_favorited?: boolean;
+}
 ```
 前端查询示例
 
@@ -351,4 +459,37 @@ const { data, error } = await supabase
     category_id: 1,
     status: 'pending'
   });
+
+
+  // 添加收藏
+const { data, error } = await supabase
+  .from('user_favorites')
+  .insert({
+    user_id: user.id,
+    tool_id: toolId
+  });
+
+// 取消收藏
+const { error } = await supabase
+  .from('user_favorites')
+  .delete()
+  .eq('user_id', user.id)
+  .eq('tool_id', toolId);
+
+// 获取用户收藏列表
+const { data: favorites } = await supabase
+  .from('user_favorites')
+  .select(`
+    *,
+    ai_tools (
+      id,
+      name,
+      description,
+      icon,
+      website_url,
+      tool_categories (name)
+    )
+  `)
+  .eq('user_id', user.id)
+  .order('created_at', { ascending: false });
 ```
