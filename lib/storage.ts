@@ -2,11 +2,18 @@ import { supabase, STORAGE_BUCKETS } from './supabase'
 import { PreviewImage } from '@/types/database'
 import { UPLOAD_LIMITS } from './constants'
 import { generateUUID } from './utils'
+import { 
+  generateSecureFileName, 
+  validateFile, 
+  SUPPORTED_IMAGE_TYPES, 
+  FILE_SIZE_LIMITS 
+} from './file-utils'
 
 export interface UploadResult {
   success: boolean
   url?: string
   error?: string
+  filename?: string
 }
 
 // 上传工具Logo到tool-logos bucket
@@ -15,24 +22,21 @@ export async function uploadToolLogo(
   file: File
 ): Promise<UploadResult> {
   try {
-    // 验证文件类型
-    if (!file.type.startsWith('image/')) {
-      return { success: false, error: '只能上传图片文件' }
+    // 使用新的文件验证函数
+    const validation = validateFile(file, FILE_SIZE_LIMITS.LOGO, SUPPORTED_IMAGE_TYPES)
+    if (!validation.isValid) {
+      return { success: false, error: validation.error }
     }
 
-    // 验证文件大小
-    if (file.size > UPLOAD_LIMITS.MAX_LOGO_SIZE) {
-      return { success: false, error: `Logo文件大小不能超过${UPLOAD_LIMITS.MAX_LOGO_SIZE / 1024 / 1024}MB` }
-    }
-
-    const fileName = `${toolSlug}/128x128.png`
+    // 生成安全的文件名
+    const fileName = await generateSecureFileName(file, toolSlug, 'logo')
     
     // 上传到tool-logos bucket
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from(STORAGE_BUCKETS.TOOL_LOGOS)
       .upload(fileName, file, {
         cacheControl: '3600',
-        upsert: true
+        upsert: false // 避免覆盖同名文件
       })
       
     if (uploadError) throw uploadError
@@ -42,7 +46,7 @@ export async function uploadToolLogo(
       .from(STORAGE_BUCKETS.TOOL_LOGOS)
       .getPublicUrl(fileName)
       
-    return { success: true, url: publicUrl }
+    return { success: true, url: publicUrl, filename: fileName }
   } catch (error) {
     console.error('Logo上传错误:', error)
     return { 
@@ -59,24 +63,21 @@ export async function uploadToolPreview(
   index: number = 0
 ): Promise<UploadResult> {
   try {
-    // 验证文件类型
-    if (!file.type.startsWith('image/')) {
-      return { success: false, error: '只能上传图片文件' }
+    // 使用新的文件验证函数
+    const validation = validateFile(file, FILE_SIZE_LIMITS.PREVIEW, SUPPORTED_IMAGE_TYPES)
+    if (!validation.isValid) {
+      return { success: false, error: validation.error }
     }
 
-    // 验证文件大小
-    if (file.size > UPLOAD_LIMITS.MAX_FILE_SIZE) {
-      return { success: false, error: `图片大小不能超过${UPLOAD_LIMITS.MAX_FILE_SIZE / 1024 / 1024}MB` }
-    }
-
-    const fileName = `${toolSlug}/screenshot-${Date.now()}_${index}.jpg`
+    // 生成安全的文件名
+    const fileName = await generateSecureFileName(file, toolSlug, 'preview')
     
     // 上传到tool-previews bucket
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from(STORAGE_BUCKETS.TOOL_PREVIEWS)
       .upload(fileName, file, {
         cacheControl: '3600',
-        upsert: true
+        upsert: false // 避免覆盖同名文件
       })
       
     if (uploadError) throw uploadError
@@ -86,7 +87,7 @@ export async function uploadToolPreview(
       .from(STORAGE_BUCKETS.TOOL_PREVIEWS)
       .getPublicUrl(fileName)
       
-    return { success: true, url: publicUrl }
+    return { success: true, url: publicUrl, filename: fileName }
   } catch (error) {
     console.error('预览图上传错误:', error)
     return { 
@@ -107,11 +108,11 @@ export async function uploadMultiplePreviews(
     const file = files[i]
     const result = await uploadToolPreview(toolSlug, file, i)
     
-    if (result.success && result.url) {
+    if (result.success && result.url && result.filename) {
       const previewImage: PreviewImage = {
         id: generateUUID(),
         url: result.url,
-        filename: `${toolSlug}/screenshot-${Date.now()}_${i}.jpg`,
+        filename: result.filename, // 使用生成的安全文件名
         alt: file.name,
         description: '',
         sort_order: i,

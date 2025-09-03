@@ -263,28 +263,30 @@ export default function SubmitToolPage() {
   }
 
   // 处理Logo文件选择
-  const handleLogoSelect = (file: File) => {
-    // 验证文件类型
-    if (!file.type.startsWith('image/')) {
-      setError('只能上传图片文件')
-      return
-    }
+  const handleLogoSelect = async (file: File) => {
+    try {
+      // 使用新的文件验证逻辑
+      const { validateFile, SUPPORTED_IMAGE_TYPES, FILE_SIZE_LIMITS } = await import('@/lib/file-utils')
+      
+      const validation = validateFile(file, FILE_SIZE_LIMITS.LOGO, SUPPORTED_IMAGE_TYPES)
+      if (!validation.isValid) {
+        setError(validation.error || '文件验证失败')
+        return
+      }
 
-    // 验证文件大小
-    if (file.size > UPLOAD_LIMITS.MAX_LOGO_SIZE) {
-      setError(`Logo文件大小不能超过${UPLOAD_LIMITS.MAX_LOGO_SIZE / 1024 / 1024}MB`)
-      return
-    }
+      setLogoFile(file)
+      setError("")
 
-    setLogoFile(file)
-    setError("")
-
-    // 创建预览
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      setLogoPreview(e.target?.result as string)
+      // 创建预览
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setLogoPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    } catch (error) {
+      console.error('Logo文件处理错误:', error)
+      setError('文件处理失败，请重试')
     }
-    reader.readAsDataURL(file)
   }
 
   // 移除Logo
@@ -309,6 +311,7 @@ export default function SubmitToolPage() {
         return null
       }
       
+      console.log('Logo上传成功，文件名:', result.filename)
       return result.url || null
     } catch (error) {
       console.error('Logo上传错误:', error)
