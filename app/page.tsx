@@ -89,6 +89,17 @@ export default function HomePage() {
         </header>
         <main className="flex-1 px-6 py-8 pt-24">
           <div className="max-w-7xl mx-auto">
+            {/* SEO优化的页面标题和描述 */}
+            <div className="mb-8 text-center">
+              <h1 className="text-3xl font-bold text-gray-900 mb-4">
+                发现最优秀的AI工具 - CollectNow.top
+              </h1>
+              <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+                专业的AI工具导航平台，收录最新最全的AI工具，包括AI写作、AI图像、AI视频、AI编程等各类工具，
+                帮助用户快速发现和选择最适合的AI工具，提升工作效率。
+              </p>
+            </div>
+
             {/* Featured Tools Section */}
             <section className="mb-12">
               <div className="flex items-center gap-3 mb-6">
@@ -239,6 +250,38 @@ export default function HomePage() {
                 {getToolsByCategory('search').map((tool) => (
                   <ToolCard key={`search-${tool.id}`} tool={tool} variant="compact" />
                 ))}
+              </div>
+            </section>
+
+            {/* SEO优化的底部内容 */}
+            <section className="mt-16 mb-8">
+              <div className="bg-white rounded-lg p-8 shadow-sm">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  为什么选择CollectNow.top？
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">全面收录</h3>
+                    <p className="text-gray-600">
+                      收录最新最全的AI工具，涵盖写作、图像、视频、编程等各个领域，
+                      帮助用户发现更多优质工具。
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">精准分类</h3>
+                    <p className="text-gray-600">
+                      按照功能和使用场景进行精准分类，用户可以快速找到
+                      适合自己需求的AI工具。
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">实时更新</h3>
+                    <p className="text-gray-600">
+                      持续关注AI工具动态，及时收录新工具和更新信息，
+                      确保用户获得最新的工具资讯。
+                    </p>
+                  </div>
+                </div>
               </div>
             </section>
           </div>

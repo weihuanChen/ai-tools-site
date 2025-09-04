@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ExternalLink } from "lucide-react"
 import { AITool } from "@/types/database"
+import { LazyImage } from "@/components/lazy-image"
 
 interface ToolCardProps {
   tool: AITool
@@ -47,7 +48,11 @@ export function ToolCard({ tool, variant = "default" }: ToolCardProps) {
             group-hover:scale-105 transition-transform duration-200
           `}
           >
-            <img src={tool.icon || "/placeholder.svg"} alt={tool.name} className="w-full h-full object-cover" />
+            <LazyImage
+              src={tool.icon || "/placeholder.svg"}
+              alt={tool.name}
+              className="w-full h-full"
+            />
           </div>
 
           <div className="flex-1 min-w-0 overflow-hidden flex flex-col h-full">

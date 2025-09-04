@@ -1,3 +1,7 @@
+import { generateMetadata } from "./metadata"
+
+export { generateMetadata }
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -39,6 +43,8 @@ import { getToolComments, createComment, addCommentInteraction, removeCommentInt
 import { TOOL_TAGS } from "@/lib/constants"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { LazyImage } from "@/components/lazy-image"
+import { StructuredData } from "@/components/structured-data"
 
 export default function ToolDetailPage() {
   const params = useParams()
@@ -633,6 +639,9 @@ export default function ToolDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* 结构化数据 */}
+      {tool && <StructuredData tool={tool} type="tool" />}
+
       {/* Header */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -652,10 +661,11 @@ export default function ToolDetailPage() {
 
           <div className="flex items-start gap-6">
             <div className="w-20 h-20 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
-              <img
+              <LazyImage
                 src={tool.icon || "/placeholder.svg"}
                 alt={tool.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full"
+                priority={true}
               />
             </div>
 
@@ -1060,10 +1070,10 @@ export default function ToolDetailPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {tool.preview_images.map((image, index) => (
                           <div key={index} className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                            <img
+                            <LazyImage
                               src={image.url || "/placeholder.svg?height=300&width=500"}
                               alt={image.alt || `${tool.name} 截图 ${index + 1}`}
-                              className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
+                              className="w-full h-full hover:scale-105 transition-transform cursor-pointer"
                             />
                           </div>
                         ))}
@@ -1094,10 +1104,10 @@ export default function ToolDetailPage() {
                       className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
                     >
                       <div className="w-10 h-10 bg-gray-100 rounded-lg overflow-hidden">
-                        <img
+                        <LazyImage
                           src={relatedTool.icon || "/placeholder.svg"}
                           alt={relatedTool.name}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full"
                         />
                       </div>
                       <div className="flex-1">
