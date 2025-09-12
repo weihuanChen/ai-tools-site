@@ -92,7 +92,7 @@ export default function HomePage() {
             {/* SEO优化的页面标题和描述 */}
             <div className="mb-8 text-center">
               <h1 className="text-3xl font-bold text-gray-900 mb-4">
-                发现最优秀的AI工具 - CollectNow.top
+                发现最优秀的AI工具 -  CollectNow.top
               </h1>
               <p className="text-lg text-gray-600 max-w-3xl mx-auto">
                 专业的AI工具导航平台，收录最新最全的AI工具，包括AI写作、AI图像、AI视频、AI编程等各类工具，
