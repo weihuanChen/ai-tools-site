@@ -1,7 +1,3 @@
-import { generateMetadata } from "./metadata"
-
-export { generateMetadata }
-
 "use client"
 
 import { useState, useEffect } from "react"

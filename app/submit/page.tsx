@@ -1,21 +1,3 @@
-import { Metadata } from "next"
-
-export const metadata: Metadata = {
-  title: "提交AI工具 - 分享您发现的优质AI工具 | CollectNow.top",
-  description: "在CollectNow.top提交您发现的优质AI工具，与更多用户分享，帮助大家发现更多有用的AI工具，共同建设AI工具生态。",
-  keywords: "提交AI工具,分享AI工具,AI工具推荐,AI工具收录,CollectNow",
-  openGraph: {
-    title: "提交AI工具 - 分享您发现的优质AI工具",
-    description: "在CollectNow.top提交您发现的优质AI工具，与更多用户分享，帮助大家发现更多有用的AI工具。",
-    type: "website",
-    url: "https://collectnow.top/submit",
-    siteName: "CollectNow.top - AI工具集",
-  },
-  alternates: {
-    canonical: "https://collectnow.top/submit",
-  },
-}
-
 "use client"
 
 import type React from "react"
